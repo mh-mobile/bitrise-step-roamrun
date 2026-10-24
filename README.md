@@ -19,7 +19,8 @@ It runs on macOS stacks with macOS 15 or later only: Homebrew's Tailscale had re
 for macOS 15 and later when this was written, and the Step stops on an older macOS (Bitrise's stack
 reports list each stack's macOS; the stacks with Xcode 16.3 and later had macOS 15 or later).
 
-**Until roamrunctl 0.10.0 is released**, its download fails: give a build of it as `roamrunctl_path`.
+**roamrunctl 0.10.0 wasn't released yet at this Step's 1.0.0**: until it is, its download fails;
+give a build of it as `roamrunctl_path`.
 
 ## Usage
 
@@ -90,7 +91,7 @@ this Step.
   `TS_AUTHKEY`, and `ROAMRUN_KEY` (the key file pasted whole) or `RELAY_TOKEN`. These inputs take
   Secrets only. The relay's address and the device's name needn't be Secrets: Bitrise hides every
   occurrence of a Secret's value in the log, and in the runs below a device named `relay`, kept as
-  a Secret, turned roamrunctl's messages into `[REDACTED]`.
+  a Secret, put `[REDACTED]` into roamrunctl's messages wherever the word appeared.
 
 One device takes one install at a time: they aren't coordinated, and a relay refuses a second one
 while the first runs. Keep builds that install on one device from running at the same time (the
@@ -122,7 +123,7 @@ pull request's build joins your tailnet.
 | `tailscale_auth_key` | The auth key, a Secret. Required. |
 | `roamrun_key` | The device's pairing, a Secret: a file `roamrun key create` wrote, or one `roamrunctl pair control` saved. Give this or `relay_address`. |
 | `relay_address` | The relay's address and port, as `roamrunctl mcp --http` printed them. Give this or `roamrun_key`. |
-| `relay_token` | With `relay_address`, the relay's token, a Secret. |
+| `relay_token` | With `relay_address`, the relay's token, a Secret (required). |
 | `device_name` | With `relay_address`, the device as the relay names it (required). With `roamrun_key`, any name for it on the build machine (default `device`). |
 | `ipa_path` | The `.ipa` to install. Default `$BITRISE_IPA_PATH`. Leave it empty to launch `bundle_id` without installing. |
 | `bundle_id` | The app to launch. Leave it empty to launch the app the `.ipa` holds. |
@@ -170,8 +171,8 @@ Each time, Homebrew poured Tailscale 1.104.1's ready-built package and the machi
 `bitrise-<build number>`. After the first, the machine wasn't in the tailnet's machines, and a look
 at the device showed the app in front.
 
-The changes since that commit (the checks of `roamrunctl_version` and of tailscaled's socket, the
-umask around brew, this README) ran through `scripts/check-refusals.sh` and the CI workflow, and
+The changes since that commit (among them the checks of `roamrunctl_version` and of tailscaled's
+socket, the umask around brew, step.yml's wording and this README) ran through `scripts/check-refusals.sh` and the CI workflow, and
 through `step.sh` with stand-ins for brew, Tailscale and roamrunctl; not on bitrise.io.
 
 Not tried: the default download of roamrunctl (it waits for 0.10.0's release), a pull request's
