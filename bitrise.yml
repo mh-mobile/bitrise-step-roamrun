@@ -1,0 +1,24 @@
+format_version: "13"
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+
+workflows:
+  # This Step from this folder, given nothing: it has to fail before it fetches anything.
+  refused:
+    steps:
+      - path::./:
+          inputs:
+            - tailscale_auth_key: ""
+            - bundle_id: com.example.app
+
+  # On a real device: the values come from .bitrise.secrets.yml (not committed), as on bitrise.io from Secrets.
+  device:
+    steps:
+      - path::./:
+          inputs:
+            - tailscale_auth_key: $TS_AUTHKEY
+            - roamrun_key: $ROAMRUN_KEY
+            - relay_address: $RELAY
+            - relay_token: $RELAY_TOKEN
+            - device_name: $DEVICE
+            - ipa_path: $IPA
+            - roamrunctl_path: $ROAMRUNCTL

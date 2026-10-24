@@ -1,0 +1,25 @@
+name: check
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tools
+        run: brew install shellcheck bitrise && bitrise setup
+      - name: shellcheck
+        run: shellcheck step.sh scripts/*.sh
+      - name: Refused before anything is fetched
+        run: scripts/check-refusals.sh
+      - name: step.yml and bitrise.yml
+        run: |
+          bitrise validate
+          ~/.bitrise/tools/stepman audit --step-yml step.yml
+      - name: Through the Bitrise CLI, a refusal fails the Step
+        run: |
+          if bitrise run refused > out.log 2>&1; then cat out.log; exit 1; fi
+          grep -q '^error: tailscale_auth_key is empty$' out.log || { cat out.log; exit 1; }
