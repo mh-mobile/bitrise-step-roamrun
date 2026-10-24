@@ -19,9 +19,6 @@ It runs on macOS stacks with macOS 15 or later only: Homebrew's Tailscale had re
 for macOS 15 and later when this was written, and the Step stops on an older macOS (Bitrise's stack
 reports list each stack's macOS; the stacks with Xcode 16.3 and later had macOS 15 or later).
 
-**roamrunctl 0.10.0 wasn't released yet at this Step's 1.0.0**: until it is, its download fails;
-give a build of it as `roamrunctl_path`.
-
 ## Usage
 
 The Step isn't in Bitrise's Step Library: add it in `bitrise.yml` (the Workflow Editor's YAML view),
@@ -175,8 +172,12 @@ The changes since that commit (among them the checks of `roamrunctl_version` and
 socket, the umask around brew, step.yml's wording and this README) ran through `scripts/check-refusals.sh` and the CI workflow, and
 through `step.sh` with stand-ins for brew, Tailscale and roamrunctl; not on bitrise.io.
 
-Not tried: the default download of roamrunctl (it waits for 0.10.0's release), a pull request's
-build, `bundle_id`, `launch_app: no`, `install_timeout`, an Intel Mac, the Bitrise CLI on a Mac of
+After roamrunctl 0.10.0's release, on 2026-10-25 (UTC), the `roamrun_key` workflow ran once more
+with this Step's 1.0.0 and no `roamrunctl_path`: it downloaded roamrunctl 0.10.0 from the release,
+checked it against `roamrunctl-SHA256SUMS`, and installed and launched the same `.ipa`; the Step took
+27 s.
+
+Not tried: a pull request's build, `bundle_id`, `launch_app: no`, `install_timeout`, an Intel Mac, the Bitrise CLI on a Mac of
 your own, a Step stopped by its timeout, an iPad, a larger `.ipa`.
 
 ## License
