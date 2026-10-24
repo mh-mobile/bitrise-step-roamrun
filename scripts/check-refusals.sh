@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Each wrong input, and each machine it can't run on, stops step.sh with its message before anything is
-# fetched or started (curl and brew here fail if called).
+# fetched, started or written (curl and brew here fail if called; no /tmp/rr.* folder is made). macOS's
+# /bin/bash (3.2), as on Bitrise.
 set -uo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 temp=$(mktemp -d)
@@ -18,13 +19,14 @@ echo "${FAKE_MACOS:-15.7.9}"
 END
 chmod +x "$fake"/*
 touch "$fake/app.ipa"
+before=$(find /tmp/ -maxdepth 1 -name 'rr.*' | wc -l)
 
 expect() {
   local want=$1; shift
   local got
   got=$(cd "$temp" && env -i PATH="$fake:$PATH" tailscale_auth_key=tskey-test roamrun_key= relay_address= \
     relay_token= device_name= ipa_path= bundle_id= launch_app=yes install_timeout= roamrunctl_version=0.10.0 \
-    roamrunctl_path= "$@" bash "$here/step.sh" 2>&1)
+    roamrunctl_path= "$@" /bin/bash "$here/step.sh" 2>&1)
   local status=$?
   if [ "$status" -ne 0 ] && [ "$got" = "error: $want" ]; then echo "ok: $want"
   else echo "FAIL: wanted 'error: $want' and a failure, got ($status): $got"; failed=1; fi
@@ -41,10 +43,14 @@ expect "no file at ipa_path: missing.ipa" roamrun_key=k ipa_path=missing.ipa
 expect "launch_app is yes or no, not true" roamrun_key=k bundle_id=b launch_app=true
 expect "install_timeout is a number of seconds, not 5m" relay_address=r relay_token=t device_name=d bundle_id=b install_timeout=5m
 expect "no program at roamrunctl_path: /nonexistent/roamrunctl" roamrun_key=k bundle_id=b roamrunctl_path=/nonexistent/roamrunctl
+expect "roamrunctl_version 0.9.0: this Step needs 0.10.0 or later" roamrun_key=k bundle_id=b roamrunctl_version=0.9.0
+expect "roamrunctl_version is a release such as 0.10.0, not latest" roamrun_key=k bundle_id=b roamrunctl_version=latest
+expect "roamrunctl_version is a release such as 0.10.0, not v0.10.0" roamrun_key=k bundle_id=b roamrunctl_version=v0.10.0
 expect "this Step runs on macOS stacks only" roamrun_key=k bundle_id=b FAKE_OS=Linux
 expect "macOS 14.5: this Step needs a stack with macOS 15 or later (Xcode 16.3 or later)" roamrun_key=k ipa_path="$fake/app.ipa" FAKE_MACOS=14.5
 expect "no roamrunctl for i386" roamrun_key=k bundle_id=b FAKE_ARCH=i386
 
 if [ -n "$(ls -A "$temp")" ]; then echo "FAIL: something was written: $(ls -A "$temp")"; failed=1; fi
+if [ "$(find /tmp/ -maxdepth 1 -name 'rr.*' | wc -l)" != "$before" ]; then echo "FAIL: a /tmp/rr.* folder was left"; failed=1; fi
 rm -rf "$temp" "$fake"
 exit "$failed"

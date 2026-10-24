@@ -4,10 +4,19 @@
 set -euo pipefail
 
 fail() { echo "error: $1" >&2; exit 1; }
+# ROAMRUNCTL_PROXY came in 0.10.0: an older roamrunctl would ignore it and fail to connect.
+at_least_0_10() {
+  local major=${1%%.*} minor=${1#*.}
+  minor=${minor%%[!0-9]*}
+  case "$major$minor" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$major" -gt 0 ] || [ "${minor:-0}" -ge 10 ]
+}
 
 auth_key=${tailscale_auth_key:-} key=${roamrun_key:-} relay=${relay_address:-} token=${relay_token:-}
 device=${device_name:-} ipa=${ipa_path:-} bundle=${bundle_id:-} launch=${launch_app:-yes}
 install_timeout=${install_timeout:-} version=${roamrunctl_version:-0.10.0} given_rr=${roamrunctl_path:-}
+# Kept in variables of this script only: nothing it starts (brew, tailscaled) gets them in its environment.
+unset tailscale_auth_key roamrun_key relay_token
 
 # A pull request's build gets no Secrets unless they are exposed to it: say so, not just "missing".
 withheld() {
@@ -26,6 +35,13 @@ if [ -n "$ipa" ] && [ ! -f "$ipa" ]; then fail "no file at ipa_path: $ipa"; fi
 case "$launch" in yes|no) ;; *) fail "launch_app is yes or no, not $launch" ;; esac
 case "$install_timeout" in *[!0-9]*) fail "install_timeout is a number of seconds, not $install_timeout" ;; esac
 if [ -n "$given_rr" ] && [ ! -x "$given_rr" ]; then fail "no program at roamrunctl_path: $given_rr"; fi
+if [ -z "$given_rr" ]; then
+  case "$version" in
+    *[!0-9.]*|.*|*.|*..*) fail "roamrunctl_version is a release such as 0.10.0, not $version" ;;
+    *.*.*) at_least_0_10 "$version" || fail "roamrunctl_version $version: this Step needs 0.10.0 or later" ;;
+    *) fail "roamrunctl_version is a release such as 0.10.0, not $version" ;;
+  esac
+fi
 
 # Homebrew's tailscale has bottles for macOS 15 and later only; before that it would build from source.
 [ "$(uname -s)" = Darwin ] || fail "this Step runs on macOS stacks only"
@@ -36,7 +52,7 @@ case "$(uname -m)" in
   x86_64) archive=roamrunctl-macos-x86_64 ;;
   *) fail "no roamrunctl for $(uname -m)" ;;
 esac
-[ -z "$ipa" ] || ipa=$(cd "$(dirname "$ipa")" && pwd)/$(basename "$ipa")
+[ -z "$ipa" ] || ipa=$(CDPATH='' cd "$(dirname "$ipa")" && pwd)/$(basename "$ipa")
 
 # Everything this writes, the keys among them, is in a folder of its own, removed at the end. Short: a
 # unix socket's path must stay under 104 bytes. (A timeout kills this with SIGKILL: then nothing is.)
@@ -53,7 +69,6 @@ cleanup() {
   rm -rf "$work"
 }
 trap cleanup EXIT
-umask 077
 
 if [ -n "$given_rr" ]; then
   rr=$given_rr
@@ -69,16 +84,17 @@ else
 fi
 have=$("$rr" --version)
 echo "$have"
-# ROAMRUNCTL_PROXY came in 0.10.0: an older one would ignore it and fail to connect.
-v=${have##* } && major=${v%%.*} && minor=${v#*.} && minor=${minor%%.*}
-[ "$major" -gt 0 ] || [ "$minor" -ge 10 ] || fail "$have: this Step needs roamrunctl 0.10.0 or later"
+at_least_0_10 "${have##* }" || fail "$have: this Step needs roamrunctl 0.10.0 or later"
 
 echo "Installing Tailscale (Homebrew)"
 HOMEBREW_NO_AUTO_UPDATE=1 brew install tailscale
 bin=$(brew --prefix)/bin
-"$bin/tailscale" version | head -1
+"$bin/tailscale" version
+# From here, what this writes (the keys, Tailscale's state) is this user's alone.
+umask 077
 
 echo "Starting tailscaled (userspace networking, an HTTP proxy into the tailnet)"
+: > "$work/log"
 "$bin/tailscaled" --tun=userspace-networking --socket="$work/sock" --statedir="$work/state" \
   --outbound-http-proxy-listen=127.0.0.1:0 > "$work/log" 2>&1 &
 daemon=$!
@@ -89,7 +105,7 @@ for _ in $(seq 30); do
   [ -S "$work/sock" ] && [ -n "$port" ] && break
   sleep 1
 done
-[ -n "$port" ] || { cat "$work/log" >&2; fail "tailscaled didn't start its proxy in 30 s"; }
+[ -S "$work/sock" ] && [ -n "$port" ] || { cat "$work/log" >&2; fail "tailscaled didn't start in 30 s"; }
 
 host="bitrise-${BITRISE_BUILD_NUMBER:-local}"
 echo "Joining the tailnet as $host"

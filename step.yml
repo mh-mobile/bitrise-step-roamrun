@@ -1,7 +1,7 @@
 title: RoamRun install and launch
 summary: Install an .ipa on a paired iPhone or iPad over Tailscale and launch it, with roamrunctl
 description: |
-  Joins your tailnet with Tailscale in userspace (no root, nothing changed on the machine), then
+  Joins your tailnet with Tailscale in userspace (no root, no change to the machine's network settings), then
   installs the `.ipa` on a device and launches it with [roamrunctl](https://github.com/mh-mobile/RoamRun/tree/main/Rust/roamrunctl):
   on this machine with the device's key (`roamrun_key`), or through a relay of yours that holds it
   (`relay_address`). macOS stacks with macOS 15 or later (Xcode 16.3 or later).
@@ -30,13 +30,13 @@ inputs:
       summary: An auth key that joins your tailnet (Secret)
       description: |
         Made in Tailscale's admin console (Settings › Keys): Reusable, Ephemeral, with a tag such as
-        `tag:ci`, and a short expiry. The machine leaves the tailnet when the Step ends.
+        `tag:ci`, and a short expiry. The machine logs out of the tailnet when the Step ends.
       is_required: true
       is_sensitive: true
   - roamrun_key:
     opts:
       title: Device key
-      summary: The device's pairing (Secret). Give this or relay_address
+      summary: The device's pairing (Secret). Give this or Relay address
       description: |
         The whole of a file `roamrun key create` wrote, or one `roamrunctl pair control` saved. roamrunctl
         runs on this machine. Whoever has it, and reaches the device, can operate the device until its
@@ -45,37 +45,39 @@ inputs:
   - relay_address:
     opts:
       title: Relay address
-      summary: The relay's address and port (100.x.y.z:9090). Give this or roamrun_key
+      summary: The relay's address and port (100.x.y.z:9090). Give this or Device key
       description: |
         A machine of yours running `roamrunctl mcp --http` (roamrunctl 0.9.0 or later) with
-        `--allow-install`: it installs and launches, and the device's key stays there.
+        `--allow tag:ci`, a token and `--allow-install`: it installs and launches, and the device's
+        key stays there. See the README.
   - relay_token:
     opts:
       title: Relay token
-      summary: With relay_address, the relay's token (Secret)
+      summary: With Relay address, the relay's token (Secret)
       is_sensitive: true
   - device_name:
     opts:
       title: Device name
-      summary: With relay_address, the device as the relay names it (required); with roamrun_key, the name it is saved under here
+      summary: With Relay address, the device as the relay names it (required). With Device key, any name (default device)
   - ipa_path: $BITRISE_IPA_PATH
     opts:
       title: .ipa path
-      summary: The .ipa to install. Empty, and only bundle_id is launched
+      summary: The .ipa to install. Leave it empty to launch the bundle identifier without installing
   - bundle_id:
     opts:
       title: Bundle identifier
-      summary: The app to launch. Empty, and the app the .ipa holds is launched (unless launch_app is no)
+      summary: The app to launch. Leave it empty to launch the app the .ipa holds
   - launch_app: "yes"
     opts:
       title: Launch after installing
+      summary: no to install without launching
       value_options:
         - "yes"
         - "no"
   - install_timeout:
     opts:
       title: Install timeout
-      summary: With relay_address, the most seconds to wait for the install (empty, what the relay gives it)
+      summary: With Relay address, the most seconds to wait for the install (empty, what the relay gives it)
   - roamrunctl_version: "0.10.0"
     opts:
       title: roamrunctl version
