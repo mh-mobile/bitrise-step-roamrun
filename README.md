@@ -43,8 +43,10 @@ Through a relay:
 ```
 
 `TS_AUTHKEY`, `ROAMRUN_KEY` and `RELAY_TOKEN` are Bitrise Secrets: these inputs take Secrets only.
-`ipa_path` defaults to `$BITRISE_IPA_PATH`, which Xcode Archive & Export sets when it runs before
-this Step.
+The relay's address and the device's name needn't be: Bitrise hides every occurrence of a Secret's
+value in the log, so a name such as `relay` kept as a Secret turns roamrunctl's messages into
+`[REDACTED]`. `ipa_path` defaults to `$BITRISE_IPA_PATH`, which Xcode Archive & Export sets when it
+runs before this Step.
 
 ## What to prepare
 
@@ -115,7 +117,25 @@ remove the `/tmp/rr.*` folder.
 
 ## What was tried
 
-Nothing yet on bitrise.io.
+On 2026-10-24 (UTC), on bitrise.io (Hobby plan; stack Xcode 27.1, machine M2 Pro Medium), with this
+Step at its first commit on `main` and roamrunctl 0.10.0 built from RoamRun's `release/0.10.0`
+(given as `roamrunctl_path`: 0.10.0 wasn't released yet), from a private repository, on an iPhone
+15 Pro (iOS 27.0) at home, unlocked; the auth key Reusable, Ephemeral, `tag:ci`; a development-signed
+`.ipa` of a template app:
+
+| Workflow | Result |
+|---|---|
+| `roamrun_key` (a file `roamrun key create` wrote), an `.ipa` signed on a Mac and committed | installed and launched; the Step took 26 s |
+| `relay_address` (a MacBook Pro, Homebrew roamrunctl 0.9.0) and the same `.ipa` | installed (5 s) and launched; the Step took 16 s |
+| Xcode Archive & Export (`distribution_method: development`, signing by an App Store Connect API key and the development certificate), then `roamrun_key` with the default `ipa_path` | installed and launched; the Step took 21 s |
+
+Each time, Homebrew poured Tailscale 1.104.1's ready-built package, the machine joined as
+`bitrise-<build number>`, and it wasn't in the tailnet's machines afterwards. A look at the device
+showed the app in front.
+
+Not tried: the default download of roamrunctl (it waits for 0.10.0's release), `bundle_id`,
+`launch_app: no`, `install_timeout`, an Intel Mac, the Bitrise CLI on a Mac of your own, a Step
+stopped by its timeout, an iPad, a larger `.ipa`.
 
 ## License
 
