@@ -15,8 +15,6 @@ at_least_0_10() {
 auth_key=${tailscale_auth_key:-} key=${roamrun_key:-} relay=${relay_address:-} token=${relay_token:-}
 device=${device_name:-} ipa=${ipa_path:-} bundle=${bundle_id:-} launch=${launch_app:-yes}
 install_timeout=${install_timeout:-} version=${roamrunctl_version:-0.10.0} given_rr=${roamrunctl_path:-}
-# Kept in variables of this script only: nothing it starts (brew, tailscaled) gets them in its environment.
-unset tailscale_auth_key roamrun_key relay_token
 
 # A pull request's build gets no Secrets unless they are exposed to it: say so, not just "missing".
 withheld() {

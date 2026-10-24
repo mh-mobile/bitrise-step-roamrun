@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Each wrong input, and each machine it can't run on, stops step.sh with its message before anything is
-# fetched, started or written (curl and brew here fail if called; no /tmp/rr.* folder is made). macOS's
+# fetched or started (curl and brew here fail if called), and leaves no /tmp/rr.* folder. macOS's
 # /bin/bash (3.2), as on Bitrise.
 set -uo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)

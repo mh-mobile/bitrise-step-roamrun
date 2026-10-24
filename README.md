@@ -24,13 +24,13 @@ reports list each stack's macOS; the stacks with Xcode 16.3 and later had macOS 
 ## Usage
 
 The Step isn't in Bitrise's Step Library: add it in `bitrise.yml` (the Workflow Editor's YAML view),
-by its git URL and tag; the editor then shows its inputs. After Xcode Archive & Export, with the key
-on the build machine:
+by its git URL and tag. After Xcode Archive & Export, with the key on the build machine:
 
 ```yaml
 - xcode-archive@6:
     inputs:
       - distribution_method: development
+      - automatic_code_signing: api-key
 - git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.0.0:
     inputs:
       - tailscale_auth_key: $TS_AUTHKEY
@@ -56,12 +56,12 @@ this Step.
 - **The device**: an iPhone or iPad with iOS/iPadOS 27 or later, Developer Mode on, Tailscale on it
   and signed in to your tailnet, on Wi‑Fi (a device on cellular alone doesn't accept these
   connections), and unlocked once since it started.
-- **The `.ipa`**, signed with a development (or ad hoc) profile that lists the device: the device in
+- **The `.ipa`**, signed with a development profile that lists the device (ad hoc wasn't tried): the device in
   your team's device list, and code signing set up on Bitrise for Xcode Archive & Export. The runs
   below used an App Store Connect API key (a paid Apple Developer Program team) and the Apple
   Development certificate; [RoamRun's Bitrise page](https://github.com/mh-mobile/RoamRun/blob/main/docs/bitrise.md)
-  says where each goes.
-- **A Tailscale auth key**, not an OAuth client (admin console › Settings › Keys): Reusable,
+  (from RoamRun 0.10.0) says where each goes.
+- **A Tailscale auth key** (admin console › Settings › Keys; an OAuth client wasn't tried): Reusable,
   Ephemeral, a tag such as `tag:ci`, and a short expiry (90 days at most; when it has expired,
   `tailscale up` fails and the Step with it: make a new one). Your policy's `tagOwners` has to name
   the tag: [the CI guide](https://github.com/mh-mobile/RoamRun/blob/main/docs/ci.md#tailscale-a-tag-and-an-oauth-client)
@@ -77,8 +77,8 @@ this Step.
     `roamrun key create <device> key.json --as ci`;
   - or on any machine on the device's Wi‑Fi with
     [roamrunctl](https://github.com/mh-mobile/RoamRun/tree/main/Rust/roamrunctl#install):
-    `roamrunctl pair control --to <device> --as ci`, which saves it under
-    `~/.config/roamrunctl/devices/`.
+    `roamrunctl pair control --to <the device's Tailscale name> --as ci`, which saves it where
+    roamrunctl keeps devices (`~/.config/roamrunctl/devices/` on macOS and Linux).
 
   Either asks you to pick the name under Settings › Privacy & Security › Developer Mode on the
   device and enter the code shown. [The CI guide](https://github.com/mh-mobile/RoamRun/blob/main/docs/ci.md#a-pairing-for-ci)
@@ -94,7 +94,8 @@ this Step.
 
 One device takes one install at a time: they aren't coordinated, and a relay refuses a second one
 while the first runs. Keep builds that install on one device from running at the same time (the
-Hobby plan used below runs one build at a time; other ways weren't looked into).
+Hobby plan used below allows one concurrent build, by its Plan & Billing page; other ways weren't
+looked into).
 
 ## Who can operate the device
 
@@ -110,8 +111,8 @@ print any of them):
 - with the relay's token, they can use the relay's tools on the device while the relay runs; stop
   it, or restart it with a new token, to take that back.
 
-Bitrise gives a pull request's build no Secrets unless they are exposed to pull requests; then the
-Step stops and says so. Exposing them gives whoever can open a pull request the same, and each
+Bitrise gives a pull request's build no Secrets unless they are exposed to pull requests; with them
+empty, the Step stops and says so. Exposing them gives whoever can open a pull request the same, and each
 pull request's build joins your tailnet.
 
 ## Inputs
@@ -125,7 +126,7 @@ pull request's build joins your tailnet.
 | `device_name` | With `relay_address`, the device as the relay names it (required). With `roamrun_key`, any name for it on the build machine (default `device`). |
 | `ipa_path` | The `.ipa` to install. Default `$BITRISE_IPA_PATH`. Leave it empty to launch `bundle_id` without installing. |
 | `bundle_id` | The app to launch. Leave it empty to launch the app the `.ipa` holds. |
-| `launch_app` | `no` to install without launching. Default `yes`. |
+| `launch_app` | `no` to install without launching. Default `yes`. (With no `.ipa`, `bundle_id` is launched whatever this says.) |
 | `install_timeout` | With `relay_address`, the most seconds to wait for the install. By default, what the relay gives the upload and the install, and a minute more. |
 | `roamrunctl_version` | The roamrunctl release to download. Default `0.10.0`; 0.10.0 or later. |
 | `roamrunctl_path` | A roamrunctl to use instead of downloading one, such as a build not released yet. |
@@ -157,17 +158,21 @@ On 2026-10-24 (UTC), on bitrise.io (Hobby plan; stack Xcode 27.1, machine M2 Pro
 Step at its first commit on `main` and roamrunctl 0.10.0 built from RoamRun's `release/0.10.0`
 (given as `roamrunctl_path`: 0.10.0 wasn't released yet), from a private repository, on an iPhone
 15 Pro (iOS 27.0) at home, unlocked; the auth key Reusable, Ephemeral, `tag:ci`, on a tailnet whose
-policy allowed everything; a development-signed 21 KB `.ipa` of a template app:
+policy allowed everything; a minimal SwiftUI app, development-signed:
 
 | Workflow | Result |
 |---|---|
-| `roamrun_key` (a file `roamrun key create` wrote), an `.ipa` signed on a Mac and committed | installed and launched; the Step took 26 s |
-| `relay_address` (a MacBook Pro, Homebrew roamrunctl 0.9.0) and the same `.ipa` | installed (5 s) and launched; the Step took 16 s |
+| `roamrun_key` (a file `roamrun key create` wrote), an `.ipa` (21 KB) signed on a Mac and committed | installed and launched; the Step took 26 s |
+| `relay_address` (a MacBook Pro, Homebrew roamrunctl 0.9.0), the same `.ipa` | installed (5 s) and launched; the Step took 16 s |
 | Xcode Archive & Export (`distribution_method: development`, signing by an App Store Connect API key and the development certificate), then `roamrun_key` with the default `ipa_path` | installed and launched; the Step took 21 s |
 
-Each time, Homebrew poured Tailscale 1.104.1's ready-built package, the machine joined as
-`bitrise-<build number>`, and it wasn't in the tailnet's machines afterwards. A look at the device
-showed the app in front.
+Each time, Homebrew poured Tailscale 1.104.1's ready-built package and the machine joined as
+`bitrise-<build number>`. After the first, the machine wasn't in the tailnet's machines, and a look
+at the device showed the app in front.
+
+The changes since that commit (the checks of `roamrunctl_version` and of tailscaled's socket, the
+umask around brew, this README) ran through `scripts/check-refusals.sh` and the CI workflow, and
+through `step.sh` with stand-ins for brew, Tailscale and roamrunctl; not on bitrise.io.
 
 Not tried: the default download of roamrunctl (it waits for 0.10.0's release), a pull request's
 build, `bundle_id`, `launch_app: no`, `install_timeout`, an Intel Mac, the Bitrise CLI on a Mac of
