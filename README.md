@@ -29,7 +29,7 @@ by its git URL and tag. After Xcode Archive & Export, with the key on the build 
     inputs:
       - distribution_method: development
       - automatic_code_signing: api-key
-- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.0.0:
+- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.1.0:
     inputs:
       - tailscale_auth_key: $TS_AUTHKEY
       - roamrun_key: $ROAMRUN_KEY
@@ -38,7 +38,7 @@ by its git URL and tag. After Xcode Archive & Export, with the key on the build 
 Through a relay, after the same Xcode Archive & Export:
 
 ```yaml
-- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.0.0:
+- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.1.0:
     inputs:
       - tailscale_auth_key: $TS_AUTHKEY
       - relay_address: 100.x.y.z:9090
@@ -126,7 +126,7 @@ pull request's build joins your tailnet.
 | `bundle_id` | The app to launch. Leave it empty to launch the app the `.ipa` holds. |
 | `launch_app` | `no` to install without launching. Default `yes`. (With no `.ipa`, `bundle_id` is launched whatever this says.) |
 | `install_timeout` | With `relay_address`, the most seconds to wait for the install. By default, what the relay gives the upload and the install, and a minute more. |
-| `roamrunctl_version` | The roamrunctl release to download. Default `0.10.0`; 0.10.0 or later. |
+| `roamrunctl_version` | The roamrunctl release to download. Default `0.11.0`; 0.10.0 or later. |
 | `roamrunctl_path` | A roamrunctl to use instead of downloading one, such as a build not released yet. |
 
 ## What it does
@@ -176,6 +176,10 @@ After roamrunctl 0.10.0's release, on 2026-10-24 (UTC), the `roamrun_key` workfl
 with this Step's 1.0.0 and no `roamrunctl_path`: it downloaded roamrunctl 0.10.0 from the release,
 checked it against `roamrunctl-SHA256SUMS`, and installed and launched the same `.ipa`; the Step took
 27 s.
+
+1.1.0 downloads roamrunctl 0.11.0 by default; that change ran through `scripts/check-refusals.sh`
+and the CI workflow, not on bitrise.io. roamrunctl 0.11.0 itself installed and launched through a
+relay from GitHub Actions, as the RoamRun docs say.
 
 Not tried: a pull request's build, `bundle_id`, `launch_app: no`, `install_timeout`, an Intel Mac, the Bitrise CLI on a Mac of
 your own, a Step stopped by its timeout, an iPad, a larger `.ipa`.
