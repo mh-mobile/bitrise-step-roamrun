@@ -106,7 +106,8 @@ looked into).
 
 With `ota_server`, the Step runs `roamrunctl ota <ipa> --server <ota_server>` (roamrunctl 0.12.0 or
 later), with `ota_server_token` as its token. The build goes on the OTA page of a Mac running
-RoamRun, and the devices install it from there. This hasn't been run with the Step yet.
+RoamRun, and the devices install it from there. It ran with the Bitrise CLI on a Mac, not on bitrise.io
+(see What was tried).
 
 ```yaml
 - xcode-archive@6:
@@ -241,10 +242,18 @@ relay from GitHub Actions, as the RoamRun docs say.
 
 1.2.0 downloads roamrunctl 0.12.0 by default and adds `ota_server`; those changes ran through
 `scripts/check-refusals.sh` and `scripts/check-dispatch.sh` (stand-ins for brew, Tailscale and
-roamrunctl) on a Mac, not on bitrise.io.
+roamrunctl) on a Mac, not on bitrise.io. On 2026-11-03 (UTC), the `ota` workflow of this
+repository's `bitrise.yml` ran with the Bitrise CLI on a MacBook Pro (macOS 27), with this Step at
+8eb6d37 and no `roamrunctl_path`: it downloaded roamrunctl 0.12.0, Homebrew poured Tailscale
+1.104.4, the machine joined as `bitrise-local` with a signed auth key (`tag:ci`, a tailnet with
+Tailnet Lock), and a 1 MB Ad Hoc `.ipa` went to the OTA server of the same MacBook Pro (RoamRun
+0.12.0's `roamrun mcp --http --allow-ota`): stored, and the page listed it (the build had been taken
+off the page first). The Mac was already in the tailnet itself; the Step's own machine was a second
+one.
 
-Not tried: a pull request's build, `bundle_id`, `launch_app: no`, `install_timeout`, an Intel Mac, the Bitrise CLI on a Mac of
-your own, a Step stopped by its timeout, an iPad, a larger `.ipa`, `ota_server`.
+Not tried: a pull request's build, `bundle_id`, `launch_app: no`, `install_timeout`, an Intel Mac, a
+Step stopped by its timeout, an iPad, a larger `.ipa`, `ota_server` on bitrise.io, and roamrunctl
+0.12.0 in the other two ways.
 
 ## License
 
