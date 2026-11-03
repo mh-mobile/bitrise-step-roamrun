@@ -16,6 +16,8 @@ jobs:
         run: shellcheck step.sh scripts/*.sh
       - name: Refused before anything is fetched
         run: scripts/check-refusals.sh
+      - name: What each mode runs, with stand-ins
+        run: scripts/check-dispatch.sh
       - name: step.yml and bitrise.yml
         run: |
           bitrise validate

@@ -1,13 +1,16 @@
-title: RoamRun install and launch
-summary: Install an .ipa on a paired iPhone or iPad over Tailscale and launch it, with roamrunctl
+title: RoamRun install and launch, or OTA publish
+summary: Install an .ipa on a paired iPhone or iPad over Tailscale and launch it, or put it on a Mac's OTA page, with roamrunctl
 description: |
   Joins your tailnet with Tailscale in userspace (no root, no change to the machine's network settings), then
   installs the `.ipa` on a device and launches it with [roamrunctl](https://github.com/mh-mobile/RoamRun/tree/main/Rust/roamrunctl):
   on this machine with the device's key (`roamrun_key`), or through a relay of yours that holds it
-  (`relay_address`). macOS stacks with macOS 15 or later (Xcode 16.3 or later).
+  (`relay_address`). Or it puts the `.ipa` on the OTA page of a Mac running RoamRun, through that
+  Mac's OTA server (`ota_server`), and the devices install it from the page. macOS stacks with
+  macOS 15 or later (Xcode 16.3 or later).
 
   Put it after Xcode Archive & Export with `distribution_method: development`: the `.ipa` has to be
-  signed with a profile that lists the device. See the README for what to prepare.
+  signed with a profile that lists the device. For the OTA page, `ad-hoc` (Release Testing) whose
+  profile lists the devices, or `enterprise`. See the README for what to prepare.
 website: https://github.com/mh-mobile/bitrise-step-roamrun
 source_code_url: https://github.com/mh-mobile/bitrise-step-roamrun
 support_url: https://github.com/mh-mobile/bitrise-step-roamrun/issues
@@ -62,7 +65,7 @@ inputs:
   - ipa_path: $BITRISE_IPA_PATH
     opts:
       title: .ipa path
-      summary: The .ipa to install. Leave it empty to launch the bundle identifier without installing
+      summary: The .ipa to install (with OTA server, to publish). Leave it empty to launch the bundle identifier without installing
   - bundle_id:
     opts:
       title: Bundle identifier
@@ -76,12 +79,33 @@ inputs:
         - "no"
   - install_timeout:
     opts:
-      title: Install timeout
-      summary: With Relay address, the most seconds to wait for the install (empty, what the relay gives it)
-  - roamrunctl_version: "0.11.0"
+      title: Install or publish timeout
+      summary: With Relay address, the most seconds to wait for the install (empty, what the relay gives it). With OTA server, for publishing (empty, roamrunctl's default)
+  - ota_server:
+    opts:
+      title: OTA server
+      summary: The Mac's OTA server address and port (100.x.y.z:9091), to put the .ipa on its OTA page instead of installing
+      description: |
+        `roamrun mcp --http <port> --allow tag:ci --allow-ota --token-file <file>` on a Mac running the
+        RoamRun app (0.12.0 or later). It puts the `.ipa` on the app's OTA page, from which the devices
+        install it, and operates no device. Leave Device key, Relay address, Relay token, Device name
+        and Bundle identifier empty. See the README.
+  - ota_server_token:
+    opts:
+      title: OTA server token
+      summary: With OTA server, its token (Secret)
+      is_sensitive: true
+  - replace: "no"
+    opts:
+      title: Replace on the OTA page
+      summary: With OTA server, yes to drop the builds the page lists under the same version and build number
+      value_options:
+        - "yes"
+        - "no"
+  - roamrunctl_version: "0.12.0"
     opts:
       title: roamrunctl version
-      summary: The roamrunctl release to download (0.10.0 or later)
+      summary: The roamrunctl release to download (0.10.0 or later; with OTA server, 0.12.0 or later)
   - roamrunctl_path:
     opts:
       title: roamrunctl path

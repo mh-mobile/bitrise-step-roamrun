@@ -1,19 +1,25 @@
-# RoamRun install and launch (Bitrise Step)
+# RoamRun install and launch, or OTA publish (Bitrise Step)
 
 A Bitrise Step that installs an `.ipa` on your iPhone or iPad and launches it, from a build, over
 Tailscale, with [roamrunctl](https://github.com/mh-mobile/RoamRun/tree/main/Rust/roamrunctl). The
-device stays where it is (at home, at the office); the build reaches it through your tailnet.
+device stays where it is (at home, at the office); the build reaches it through your tailnet. Or
+it puts the `.ipa` on the OTA page of a Mac running [RoamRun](https://github.com/mh-mobile/RoamRun),
+from which your devices install it.
 
 The Step joins the tailnet itself (Bitrise's Step Library had no Tailscale Step when this was
 written). It installs Tailscale with Homebrew, runs it in userspace (no root, nothing changed in the
 build machine's network settings) and gives roamrunctl Tailscale's HTTP proxy into the tailnet
-(`ROAMRUNCTL_PROXY`, roamrunctl 0.10.0 or later). Then it does one of two things, as
-[RoamRun's CI guide](https://github.com/mh-mobile/RoamRun/blob/main/docs/ci.md) describes them:
+(`ROAMRUNCTL_PROXY`, roamrunctl 0.10.0 or later). Then it does one of three things. The first
+two are as [RoamRun's CI guide](https://github.com/mh-mobile/RoamRun/blob/main/docs/ci.md)
+describes them:
 
 - **`roamrun_key`**: roamrunctl runs on the build machine, with the device's pairing from a Secret.
   Nothing of yours runs while the build does.
 - **`relay_address`**: a machine of yours runs `roamrunctl mcp --http` and keeps the device's key;
   the build sends it the `.ipa`, and the relay installs and launches.
+- **`ota_server`**: a Mac of yours running RoamRun puts the `.ipa` on its OTA page, through the
+  Mac's OTA server, as [RoamRun's OTA guide](https://github.com/mh-mobile/RoamRun/blob/main/docs/ota.md#from-a-ci-job)
+  describes it. The build operates no device. See [To the OTA page](#to-the-ota-page).
 
 It runs on macOS stacks with macOS 15 or later only: Homebrew's Tailscale had ready-built packages
 for macOS 15 and later when this was written, and the Step stops on an older macOS (Bitrise's stack
@@ -29,7 +35,7 @@ by its git URL and tag. After Xcode Archive & Export, with the key on the build 
     inputs:
       - distribution_method: development
       - automatic_code_signing: api-key
-- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.1.0:
+- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.2.0:
     inputs:
       - tailscale_auth_key: $TS_AUTHKEY
       - roamrun_key: $ROAMRUN_KEY
@@ -38,7 +44,7 @@ by its git URL and tag. After Xcode Archive & Export, with the key on the build 
 Through a relay, after the same Xcode Archive & Export:
 
 ```yaml
-- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.1.0:
+- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.2.0:
     inputs:
       - tailscale_auth_key: $TS_AUTHKEY
       - relay_address: 100.x.y.z:9090
@@ -66,6 +72,7 @@ this Step.
   shows the lines (its OAuth client is for GitHub Actions; here the auth key takes its place).
 - **Your tailnet's policy**: one that allows everything needs nothing more; the runs below used
   one. A narrowed one has to let the tag reach, with `relay_address`, the relay's one port; with
+  `ota_server`, the OTA server's one port; with
   `roamrun_key`, the device on TCP: its pairing port (one of 49152–49167) and a tunnel port the
   device names anew each time, with no range known, so in effect any TCP port. A narrowed policy
   wasn't tried.
@@ -85,15 +92,59 @@ this Step.
   `roamrunctl mcp --http <port> --allow tag:ci --token-file <file> --allow-install <device>`, as
   [the CI guide](https://github.com/mh-mobile/RoamRun/blob/main/docs/ci.md#on-the-relay) sets it up.
 - **Bitrise Secrets** (the app's Workflow Editor › Secrets, "Expose for Pull Requests" off):
-  `TS_AUTHKEY`, and `ROAMRUN_KEY` (the key file pasted whole) or `RELAY_TOKEN`. These inputs take
-  Secrets only. The relay's address and the device's name needn't be Secrets: Bitrise hides every
-  occurrence of a Secret's value in the log, and in the runs below a device named `relay`, kept as
-  a Secret, put `[REDACTED]` into roamrunctl's messages wherever the word appeared.
+  `TS_AUTHKEY`, and `ROAMRUN_KEY` (the key file pasted whole), `RELAY_TOKEN` or `OTA_TOKEN`. These
+  inputs take Secrets only. The relay's address and the device's name needn't be Secrets: Bitrise
+  hides every occurrence of a Secret's value in the log, and in the runs below a device named
+  `relay`, kept as a Secret, put `[REDACTED]` into roamrunctl's messages wherever the word appeared.
 
 One device takes one install at a time: they aren't coordinated, and a relay refuses a second one
 while the first runs. Keep builds that install on one device from running at the same time (the
 Hobby plan used below allows one concurrent build, by its Plan & Billing page; other ways weren't
 looked into).
+
+## To the OTA page
+
+With `ota_server`, the Step runs `roamrunctl ota <ipa> --server <ota_server>` (roamrunctl 0.12.0 or
+later), with `ota_server_token` as its token. The build goes on the OTA page of a Mac running
+RoamRun, and the devices install it from there. This hasn't been run with the Step yet.
+
+```yaml
+- xcode-archive@6:
+    inputs:
+      - distribution_method: ad-hoc
+      - automatic_code_signing: api-key
+- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.2.0:
+    inputs:
+      - tailscale_auth_key: $TS_AUTHKEY
+      - ota_server: 100.x.y.z:9091
+      - ota_server_token: $OTA_TOKEN
+      - ipa_path: $BITRISE_IPA_PATH
+```
+
+What it needs, as [RoamRun's OTA guide](https://github.com/mh-mobile/RoamRun/blob/main/docs/ota.md#from-a-ci-job)
+says:
+
+- **The `.ipa`**, exported `ad-hoc` (Release Testing) with a profile that lists the devices, or
+  `enterprise`. The Mac's OTA server refuses a development build.
+- **On the Mac**: the RoamRun app (0.12.0 or later) running, since it serves the page; MagicDNS and
+  HTTPS certificates turned on in your tailnet; and the OTA server, kept running beside it, with a
+  token of its own (not a relay's):
+
+  ```sh
+  (umask 077 && mkdir -p ~/.config/roamrun && openssl rand -hex 32 > ~/.config/roamrun/ota-token)
+  roamrun mcp --http 9091 --allow tag:ci --allow-ota --token-file ~/.config/roamrun/ota-token
+  ```
+
+  `ota_server` is the address it prints as it starts, with the port. The token file's content goes
+  into the Secret `OTA_TOKEN`.
+- **Your tailnet's policy** has to let the tag reach the OTA server's port.
+- **One publishing build at a time.** The server keeps one upload: another build's upload, starting
+  before this one's `ota` call, replaces it. roamrunctl sends its own again once; builds that overlap
+  more than that can fail.
+
+The Step passes when the build is stored. The page shows it within about 30 seconds while the
+RoamRun app runs. `replace: "yes"` adds `--replace` (the builds the page lists under the same
+version and build number are dropped), and `install_timeout` is given as `--timeout`.
 
 ## Who can operate the device
 
@@ -107,7 +158,9 @@ print any of them):
   device's Developer Mode list (the `--as` name for `roamrun key create`; for `roamrunctl pair
   control`, the Tailscale name of the machine that made it);
 - with the relay's token, they can use the relay's tools on the device while the relay runs; stop
-  it, or restart it with a new token, to take that back.
+  it, or restart it with a new token, to take that back;
+- with the OTA server's token, they can put builds on the OTA page while the server runs, and do
+  nothing else there.
 
 Bitrise gives a pull request's build no Secrets unless they are exposed to pull requests; with them
 empty, the Step stops and says so. Exposing them gives whoever can open a pull request the same, and each
@@ -122,11 +175,14 @@ pull request's build joins your tailnet.
 | `relay_address` | The relay's address and port, as `roamrunctl mcp --http` printed them. Give this or `roamrun_key`. |
 | `relay_token` | With `relay_address`, the relay's token, a Secret (required). |
 | `device_name` | With `relay_address`, the device as the relay names it (required). With `roamrun_key`, any name for it on the build machine (default `device`). |
-| `ipa_path` | The `.ipa` to install. Default `$BITRISE_IPA_PATH`. Leave it empty to launch `bundle_id` without installing. |
+| `ipa_path` | The `.ipa` to install (with `ota_server`, to publish). Default `$BITRISE_IPA_PATH`. Leave it empty to launch `bundle_id` without installing. |
 | `bundle_id` | The app to launch. Leave it empty to launch the app the `.ipa` holds. |
 | `launch_app` | `no` to install without launching. Default `yes`. (With no `.ipa`, `bundle_id` is launched whatever this says.) |
-| `install_timeout` | With `relay_address`, the most seconds to wait for the install. By default, what the relay gives the upload and the install, and a minute more. |
-| `roamrunctl_version` | The roamrunctl release to download. Default `0.11.0`; 0.10.0 or later. |
+| `install_timeout` | With `relay_address`, the most seconds to wait for the install. By default, what the relay gives the upload and the install, and a minute more. With `ota_server`, roamrunctl's `--timeout` for publishing; by default, roamrunctl's. |
+| `ota_server` | The Mac's OTA server address and port. Give it alone, without `roamrun_key`, `relay_address`, `relay_token`, `device_name` and `bundle_id`. `launch_app` isn't used with it. |
+| `ota_server_token` | With `ota_server`, its token, a Secret (required). |
+| `replace` | With `ota_server`, `yes` to drop the builds the page lists under the same version and build number. Default `no`. |
+| `roamrunctl_version` | The roamrunctl release to download. Default `0.12.0`; 0.10.0 or later, and with `ota_server`, 0.12.0 or later. |
 | `roamrunctl_path` | A roamrunctl to use instead of downloading one, such as a build not released yet. |
 
 ## What it does
@@ -142,6 +198,8 @@ pull request's build joins your tailnet.
 4. With `roamrun_key`: `roamrunctl key import -` reads the key from standard input into that folder.
    Then `roamrunctl install … --launch` (or `install`, or `launch`).
    With `relay_address`: `roamrunctl install … --relay <relay> --launch`.
+   With `ota_server`: `roamrunctl ota <ipa> --server <ota_server>`, with the token in
+   `ROAMRUNCTL_TOKEN`.
 5. Logs out of Tailscale, stops tailscaled and removes the folder, whether the Step passed or not.
 
 Nothing is passed on to later Steps. If Bitrise stops the Step for its timeout or for no output,
@@ -181,8 +239,12 @@ checked it against `roamrunctl-SHA256SUMS`, and installed and launched the same 
 and the CI workflow, not on bitrise.io. roamrunctl 0.11.0 itself installed and launched through a
 relay from GitHub Actions, as the RoamRun docs say.
 
+1.2.0 downloads roamrunctl 0.12.0 by default and adds `ota_server`; those changes ran through
+`scripts/check-refusals.sh` and `scripts/check-dispatch.sh` (stand-ins for brew, Tailscale and
+roamrunctl) on a Mac, not on bitrise.io.
+
 Not tried: a pull request's build, `bundle_id`, `launch_app: no`, `install_timeout`, an Intel Mac, the Bitrise CLI on a Mac of
-your own, a Step stopped by its timeout, an iPad, a larger `.ipa`.
+your own, a Step stopped by its timeout, an iPad, a larger `.ipa`, `ota_server`.
 
 ## License
 

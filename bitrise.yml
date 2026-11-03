@@ -22,3 +22,14 @@ workflows:
             - device_name: $DEVICE
             - ipa_path: $IPA
             - roamrunctl_path: $ROAMRUNCTL
+
+  # To a Mac's OTA page, likewise from .bitrise.secrets.yml.
+  ota:
+    steps:
+      - path::./:
+          inputs:
+            - tailscale_auth_key: $TS_AUTHKEY
+            - ota_server: $OTA_SERVER
+            - ota_server_token: $OTA_TOKEN
+            - ipa_path: $IPA
+            - roamrunctl_path: $ROAMRUNCTL

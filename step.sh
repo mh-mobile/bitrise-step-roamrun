@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 # Joins the tailnet (Tailscale in userspace; roamrunctl goes through its HTTP proxy), then installs and
-# launches with roamrunctl: here (roamrun_key) or through a relay (relay_address).
+# launches with roamrunctl: here (roamrun_key) or through a relay (relay_address); or puts the .ipa on a
+# Mac's OTA page through its OTA server (ota_server).
 set -euo pipefail
 
 fail() { echo "error: $1" >&2; exit 1; }
-# ROAMRUNCTL_PROXY came in 0.10.0: an older roamrunctl would ignore it and fail to connect.
-at_least_0_10() {
+# Whether release $1 is 0.$2 or later. ROAMRUNCTL_PROXY came in 0.10.0: an older roamrunctl would ignore it
+# and fail to connect. `ota --server` came in 0.12.0.
+at_least_0() {
   local major=${1%%.*} minor=${1#*.}
   minor=${minor%%[!0-9]*}
   case "$major$minor" in ''|*[!0-9]*) return 1 ;; esac
-  [ "$major" -gt 0 ] || [ "${minor:-0}" -ge 10 ]
+  [ "$major" -gt 0 ] || [ "${minor:-0}" -ge "$2" ]
 }
 
 auth_key=${tailscale_auth_key:-} key=${roamrun_key:-} relay=${relay_address:-} token=${relay_token:-}
 device=${device_name:-} ipa=${ipa_path:-} bundle=${bundle_id:-} launch=${launch_app:-yes}
-install_timeout=${install_timeout:-} version=${roamrunctl_version:-0.11.0} given_rr=${roamrunctl_path:-}
+install_timeout=${install_timeout:-} version=${roamrunctl_version:-0.12.0} given_rr=${roamrunctl_path:-}
+ota=${ota_server:-} ota_token=${ota_server_token:-} replace=${replace:-no}
 
 # A pull request's build gets no Secrets unless they are exposed to it: say so, not just "missing".
 withheld() {
@@ -24,19 +27,33 @@ withheld() {
 
 # What was asked, checked before anything is fetched or started.
 [ -n "$auth_key" ] || withheld "tailscale_auth_key"
-if [ -n "$key" ] && [ -n "$relay" ]; then fail "give roamrun_key or relay_address, not both"; fi
-if [ -z "$key" ] && [ -z "$relay" ]; then withheld "roamrun_key (or relay_address with relay_token)"; fi
-if [ -n "$relay" ] && [ -z "$token" ]; then withheld "relay_token"; fi
-if [ -n "$relay" ] && [ -z "$device" ]; then fail "relay_address needs device_name: the device as the relay names it"; fi
-if [ -z "$ipa" ] && [ -z "$bundle" ]; then fail "give ipa_path (to install) or bundle_id (to launch); \$BITRISE_IPA_PATH is set by Xcode Archive & Export when it runs before this Step"; fi
+case "$replace" in yes|no) ;; *) fail "replace is yes or no, not $replace" ;; esac
+if [ -n "$ota" ]; then
+  # The OTA server operates no device: what names one, or a relay, is a mistake here.
+  for input in roamrun_key relay_address relay_token device_name bundle_id; do
+    if [ -n "${!input:-}" ]; then fail "ota_server puts the .ipa on the OTA page and operates no device: leave $input empty"; fi
+  done
+  [ -n "$ota_token" ] || withheld "ota_server_token"
+  if [ -z "$ipa" ]; then fail "ota_server needs ipa_path, the .ipa to publish; \$BITRISE_IPA_PATH is set by Xcode Archive & Export when it runs before this Step"; fi
+else
+  if [ -n "$ota_token" ]; then fail "ota_server_token is given without ota_server"; fi
+  if [ "$replace" = yes ]; then fail "replace is for ota_server, which is empty"; fi
+  if [ -n "$key" ] && [ -n "$relay" ]; then fail "give roamrun_key or relay_address, not both"; fi
+  if [ -z "$key" ] && [ -z "$relay" ]; then withheld "roamrun_key (or relay_address with relay_token)"; fi
+  if [ -n "$relay" ] && [ -z "$token" ]; then withheld "relay_token"; fi
+  if [ -n "$relay" ] && [ -z "$device" ]; then fail "relay_address needs device_name: the device as the relay names it"; fi
+  if [ -z "$ipa" ] && [ -z "$bundle" ]; then fail "give ipa_path (to install) or bundle_id (to launch); \$BITRISE_IPA_PATH is set by Xcode Archive & Export when it runs before this Step"; fi
+  # With ota_server, launch_app isn't used.
+  case "$launch" in yes|no) ;; *) fail "launch_app is yes or no, not $launch" ;; esac
+fi
 if [ -n "$ipa" ] && [ ! -f "$ipa" ]; then fail "no file at ipa_path: $ipa"; fi
-case "$launch" in yes|no) ;; *) fail "launch_app is yes or no, not $launch" ;; esac
 case "$install_timeout" in *[!0-9]*) fail "install_timeout is a number of seconds, not $install_timeout" ;; esac
 if [ -n "$given_rr" ] && [ ! -x "$given_rr" ]; then fail "no program at roamrunctl_path: $given_rr"; fi
+if [ -n "$ota" ]; then needs="ota_server needs" min=12; else needs="this Step needs" min=10; fi
 if [ -z "$given_rr" ]; then
   case "$version" in
     *[!0-9.]*|.*|*.|*..*) fail "roamrunctl_version is a release such as 0.10.0, not $version" ;;
-    *.*.*) at_least_0_10 "$version" || fail "roamrunctl_version $version: this Step needs 0.10.0 or later" ;;
+    *.*.*) at_least_0 "$version" "$min" || fail "roamrunctl_version $version: $needs 0.$min.0 or later" ;;
     *) fail "roamrunctl_version is a release such as 0.10.0, not $version" ;;
   esac
 fi
@@ -81,8 +98,8 @@ else
   rr=$work/roamrunctl
 fi
 have=$("$rr" --version)
+at_least_0 "${have##* }" "$min" || fail "$have: $needs roamrunctl 0.$min.0 or later"
 echo "$have"
-at_least_0_10 "${have##* }" || fail "$have: this Step needs roamrunctl 0.10.0 or later"
 
 echo "Installing Tailscale (Homebrew)"
 HOMEBREW_NO_AUTO_UPDATE=1 brew install tailscale
@@ -114,6 +131,15 @@ rm -f "$work/authkey"
 export ROAMRUNCTL_PROXY="http://127.0.0.1:$port"
 
 # The options each command takes, written out: bash 3.2 (macOS's) refuses an empty array under set -u.
+if [ -n "$ota" ]; then
+  export ROAMRUNCTL_TOKEN="$ota_token"
+  do_ota() {
+    if [ "$replace" = yes ]; then "$rr" ota "$ipa" --server "$ota" --replace "$@"
+    else "$rr" ota "$ipa" --server "$ota" "$@"; fi
+  }
+  if [ -n "$install_timeout" ]; then do_ota --timeout "$install_timeout"; else do_ota; fi
+  exit 0
+fi
 if [ -n "$key" ]; then
   export XDG_CONFIG_HOME="$work/config"
   name=${device:-device}

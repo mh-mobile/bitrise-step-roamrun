@@ -17,6 +17,7 @@ cat > "$fake/sw_vers" <<'END'
 #!/bin/sh
 echo "${FAKE_MACOS:-15.7.9}"
 END
+printf '#!/bin/sh\necho "roamrunctl 0.11.0"\n' > "$fake/roamrunctl-0.11"
 chmod +x "$fake"/*
 touch "$fake/app.ipa"
 before=$(find /tmp/ -maxdepth 1 -name 'rr.*' | wc -l)
@@ -26,7 +27,7 @@ expect() {
   local got
   got=$(cd "$temp" && env -i PATH="$fake:$PATH" tailscale_auth_key=tskey-test roamrun_key= relay_address= \
     relay_token= device_name= ipa_path= bundle_id= launch_app=yes install_timeout= roamrunctl_version=0.10.0 \
-    roamrunctl_path= "$@" /bin/bash "$here/step.sh" 2>&1)
+    roamrunctl_path= ota_server= ota_server_token= replace=no "$@" /bin/bash "$here/step.sh" 2>&1)
   local status=$?
   if [ "$status" -ne 0 ] && [ "$got" = "error: $want" ]; then echo "ok: $want"
   else echo "FAIL: wanted 'error: $want' and a failure, got ($status): $got"; failed=1; fi
@@ -49,6 +50,24 @@ expect "roamrunctl_version is a release such as 0.10.0, not v0.10.0" roamrun_key
 expect "this Step runs on macOS stacks only" roamrun_key=k bundle_id=b FAKE_OS=Linux
 expect "macOS 14.5: this Step needs a stack with macOS 15 or later (Xcode 16.3 or later)" roamrun_key=k ipa_path="$fake/app.ipa" FAKE_MACOS=14.5
 expect "no roamrunctl for i386" roamrun_key=k bundle_id=b FAKE_ARCH=i386
+
+# ota_server: everything it needs, then one thing wrong.
+ota=(ota_server=100.64.0.2:9091 ota_server_token=t ipa_path="$fake/app.ipa" roamrunctl_version=0.12.0)
+for input in roamrun_key relay_address relay_token device_name bundle_id; do
+  expect "ota_server puts the .ipa on the OTA page and operates no device: leave $input empty" "${ota[@]}" "$input=x"
+done
+expect "ota_server_token is empty" "${ota[@]}" ota_server_token=
+expect "ota_server_token is empty: this is a pull request's build, and Bitrise gives those no Secrets unless they are exposed to pull requests" "${ota[@]}" ota_server_token= PR=true
+expect "ota_server needs ipa_path, the .ipa to publish; \$BITRISE_IPA_PATH is set by Xcode Archive & Export when it runs before this Step" "${ota[@]}" ipa_path=
+expect "no file at ipa_path: missing.ipa" "${ota[@]}" ipa_path=missing.ipa
+expect "replace is yes or no, not true" "${ota[@]}" replace=true
+expect "install_timeout is a number of seconds, not 5m" "${ota[@]}" install_timeout=5m
+expect "roamrunctl_version 0.11.0: ota_server needs 0.12.0 or later" "${ota[@]}" roamrunctl_version=0.11.0
+# A roamrunctl_path is asked its version after the Step's folder is made, still before curl or brew.
+expect "roamrunctl 0.11.0: ota_server needs roamrunctl 0.12.0 or later" "${ota[@]}" roamrunctl_path="$fake/roamrunctl-0.11"
+# And without ota_server, what only it takes.
+expect "ota_server_token is given without ota_server" roamrun_key=k bundle_id=b ota_server_token=t
+expect "replace is for ota_server, which is empty" roamrun_key=k bundle_id=b replace=yes
 
 if [ -n "$(ls -A "$temp")" ]; then echo "FAIL: something was written: $(ls -A "$temp")"; failed=1; fi
 if [ "$(find /tmp/ -maxdepth 1 -name 'rr.*' | wc -l)" != "$before" ]; then echo "FAIL: a /tmp/rr.* folder was left"; failed=1; fi
