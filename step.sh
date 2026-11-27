@@ -16,7 +16,7 @@ at_least_0() {
 
 auth_key=${tailscale_auth_key:-} key=${roamrun_key:-} relay=${relay_address:-} token=${relay_token:-}
 device=${device_name:-} ipa=${ipa_path:-} bundle=${bundle_id:-} launch=${launch_app:-yes}
-install_timeout=${install_timeout:-} version=${roamrunctl_version:-0.13.0} given_rr=${roamrunctl_path:-}
+install_timeout=${install_timeout:-} version=${roamrunctl_version:-0.14.0} given_rr=${roamrunctl_path:-}
 ota=${ota_server:-} ota_token=${ota_server_token:-} replace=${replace:-no}
 
 # A pull request's build gets no Secrets unless they are exposed to it: say so, not just "missing".

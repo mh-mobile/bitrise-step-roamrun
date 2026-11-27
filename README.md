@@ -35,7 +35,7 @@ by its git URL and tag. After Xcode Archive & Export, with the key on the build 
     inputs:
       - distribution_method: development
       - automatic_code_signing: api-key
-- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.3.0:
+- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.4.0:
     inputs:
       - tailscale_auth_key: $TS_AUTHKEY
       - roamrun_key: $ROAMRUN_KEY
@@ -44,7 +44,7 @@ by its git URL and tag. After Xcode Archive & Export, with the key on the build 
 Through a relay, after the same Xcode Archive & Export:
 
 ```yaml
-- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.3.0:
+- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.4.0:
     inputs:
       - tailscale_auth_key: $TS_AUTHKEY
       - relay_address: 100.x.y.z:9090
@@ -114,7 +114,7 @@ RoamRun, and the devices install it from there. It ran with the Bitrise CLI on a
     inputs:
       - distribution_method: ad-hoc
       - automatic_code_signing: api-key
-- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.3.0:
+- git::https://github.com/mh-mobile/bitrise-step-roamrun.git@1.4.0:
     inputs:
       - tailscale_auth_key: $TS_AUTHKEY
       - ota_server: 100.x.y.z:9091
@@ -183,7 +183,7 @@ pull request's build joins your tailnet.
 | `ota_server` | The Mac's OTA server address and port. Give it alone, without `roamrun_key`, `relay_address`, `relay_token`, `device_name` and `bundle_id`. `launch_app` isn't used with it. |
 | `ota_server_token` | With `ota_server`, its token, a Secret (required). |
 | `replace` | With `ota_server`, `yes` to drop the builds the page lists under the same version and build number. Default `no`. |
-| `roamrunctl_version` | The roamrunctl release to download. Default `0.13.0`; 0.10.0 or later, and with `ota_server`, 0.12.0 or later. |
+| `roamrunctl_version` | The roamrunctl release to download. Default `0.14.0`; 0.10.0 or later, and with `ota_server`, 0.12.0 or later. |
 | `roamrunctl_path` | A roamrunctl to use instead of downloading one, such as a build not released yet. |
 
 ## What it does
@@ -259,6 +259,9 @@ Step stopped by its timeout, an iPad, a larger `.ipa`, `ota_server` on bitrise.i
 `scripts/check-refusals.sh` and `scripts/check-dispatch.sh` on a Mac and the CI workflow, and the
 v0.13.0 archives were fetched and checked against `roamrunctl-SHA256SUMS` as the Step does, not on
 bitrise.io or with a device.
+
+1.4.0 downloads roamrunctl 0.14.0 by default and changes nothing else; it was checked the same way,
+with the v0.14.0 archives, not on bitrise.io or with a device.
 
 ## License
 
